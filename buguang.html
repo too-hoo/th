@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>口袋补光灯 | 你的随身氛围感</title>
+    <style>
+        /* 1. 基础重置 */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html { height: 100%; width: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+        /* 2. 发光区域 (核心层) */
+        #light-source {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #ffffff;
+            transition: background 0.5s ease;
+            z-index: 1;
+        }
+
+        /* 3. 控制面板 (悬浮层) */
+        #controls {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 400px;
+            background: rgba(0, 0, 0, 0.6); /* 半透明黑底，显得高级 */
+            backdrop-filter: blur(10px);    /* 毛玻璃特效 */
+            padding: 20px;
+            border-radius: 20px;
+            z-index: 10;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            transition: opacity 0.3s;
+        }
+
+        /* 隐藏控制面板的类 */
+        .hidden { opacity: 0; pointer-events: none; }
+
+        /* 按钮样式 */
+        .btn-group { display: flex; justify-content: space-between; gap: 10px; }
+        .btn {
+            flex: 1;
+            padding: 10px 0;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        /* 预设按钮颜色 */
+        .btn-cold { background: #ffffff; color: #333; }
+        .btn-warm { background: #ffcc00; color: #333; }
+        .btn-sunset { background: linear-gradient(135deg, #ff9966, #ff5e62); color: white; }
+
+        /* 颜色选择器 */
+        .color-input-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+        }
+        input[type="color"] {
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        /* 全屏开关大按钮 */
+        .toggle-btn {
+            background: #007aff;
+            color: white;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 16px;
+            margin-top: 5px;
+        }
+
+        /* 提示文字 */
+        .tip {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: rgba(0,0,0,0.3);
+            font-size: 14px;
+            z-index: 5;
+            pointer-events: none;
+            display: none; /* 默认隐藏，全屏后显示 */
+        }
+        
+        /* 针对不同背景亮度的文字适配 */
+        body.dark-text .tip { color: rgba(0,0,0,0.3); }
+        body.light-text .tip { color: rgba(255,255,255,0.3); }
+
+    </style>
+</head>
+<body class="dark-text">
+
+    <div id="light-source"></div>
+
+    <div id="tip-text" class="tip">轻点屏幕唤起菜单</div>
+
+    <div id="controls">
+        <div style="text-align: center; font-size: 18px; margin-bottom: 5px;">🔦 口袋补光灯</div>
+        
+        <div class="btn-group">
+            <button class="btn btn-cold" onclick="setLight('#ffffff')">冷白</button>
+            <button class="btn btn-warm" onclick="setLight('#ffcc00')">暖光</button>
+            <button class="btn btn-sunset" onclick="setSunset()">落日</button>
+        </div>
+
+        <div class="color-input-wrapper">
+            <span>自定义颜色:</span>
+            <input type="color" id="colorPicker" value="#ffffff">
+        </div>
+
+        <button class="btn toggle-btn" onclick="toggleMode()">开启沉浸模式 (全屏)</button>
+        
+        <div style="font-size: 12px; color: #ccc; text-align: center; margin-top: 5px;">
+            ⚠️ 请手动将手机屏幕亮度调至最大
+        </div>
+    </div>
+
+    <script>
+        const lightSource = document.getElementById('light-source');
+        const controls = document.getElementById('controls');
+        const colorPicker = document.getElementById('colorPicker');
+        const tipText = document.getElementById('tip-text');
+        let isImmersive = false;
+        let wakeLock = null;
+
+        // 1. 设置颜色函数
+        function setLight(color) {
+            lightSource.style.background = color;
+            colorPicker.value = color; // 同步颜色选择器
+        }
+
+        // 2. 设置落日渐变
+        function setSunset() {
+            lightSource.style.background = 'linear-gradient(180deg, #ff9a9e 0%, #fad0c4 99%, #fad0c4 100%)';
+        }
+
+        // 3. 颜色选择器监听
+        colorPicker.addEventListener('input', (e) => {
+            lightSource.style.background = e.target.value;
+        });
+
+        // 4. 开启/关闭沉浸模式
+        function toggleMode() {
+            isImmersive = !isImmersive;
+            
+            if (isImmersive) {
+                // 进入全屏模式
+                controls.classList.add('hidden');
+                tipText.style.display = 'block';
+                enterFullScreen();
+                requestWakeLock(); // 尝试保持屏幕常亮
+            } else {
+                // 退出全屏模式
+                controls.classList.remove('hidden');
+                tipText.style.display = 'none';
+                exitFullScreen();
+            }
+        }
+
+        // 点击屏幕任意位置唤醒菜单
+        document.body.addEventListener('click', (e) => {
+            // 如果点击的是控制面板内部，不触发
+            if (controls.contains(e.target) && !controls.classList.contains('hidden')) return;
+            
+            if (isImmersive) {
+                toggleMode();
+            }
+        });
+
+        // 5. 屏幕常亮 API (核心功能)
+        async function requestWakeLock() {
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('屏幕常亮已开启');
+                } catch (err) {
+                    console.log(`${err.name}, ${err.message}`);
+                }
+            }
+        }
+
+        // 6. 浏览器全屏 API
+        function enterFullScreen() {
+            const docElm = document.documentElement;
+            if (docElm.requestFullscreen) { docElm.requestFullscreen(); }
+            else if (docElm.webkitRequestFullScreen) { docElm.webkitRequestFullScreen(); }
+        }
+        function exitFullScreen() {
+            if (document.exitFullscreen) { document.exitFullscreen(); }
+            else if (document.webkitExitFullscreen) { document.webkitExitFullscreen(); }
+        }
+
+        // 重新获取焦点时重新申请 Wake Lock (防止切出去后失效)
+        document.addEventListener('visibilitychange', async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') {
+                requestWakeLock();
+            }
+        });
+    </script>
+</body>
+</html>

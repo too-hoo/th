@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>携隐-天赋自测 </title>
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+    <script src="https://unpkg.com/vue@2.6.14/dist/vue.js"></script>
+    <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+    <script src="https://unpkg.com/echarts@5.4.0/dist/echarts.min.js"></script>
+    <style>
+        /* 全局样式复刻 */
+        body { margin: 0; padding: 0; background-color: #f4eff8; font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", Arial, sans-serif; }
+        #app { display: flex; justify-content: center; min-height: 100vh; padding: 20px 0; }
+        
+        .talent-selftest-box { width: 100%; max-width: 600px; padding: 0 10px; box-sizing: border-box; }
+        .talent-selftest-container { background-color: #fff; border-radius: 10px; padding: 30px 20px; box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1); min-height: 500px; position: relative; }
+        
+        .talent-title { text-align: center; font-size: 24px; font-weight: bold; color: #333; margin-bottom: 10px; }
+        .provenance { font-size: 12px; color: #999; text-align: center; margin-bottom: 20px; line-height: 1.5; }
+        .talent-intro { font-size: 14px; color: #666; text-align: center; margin-bottom: 20px; }
+        
+        /* 进度条与题目 */
+        .progress { text-align: center; margin-bottom: 30px; color: #8e53c4; font-weight: bold; }
+        .question-container { margin-bottom: 30px; }
+        .question-title { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 30px; min-height: 48px; display: flex; align-items: center; justify-content: center; }
+        
+        /* 选项样式 */
+        .question-options { display: flex; flex-direction: column; gap: 15px; }
+        .option { cursor: pointer; display: block; }
+        .option-content {
+            border: 1px solid #dcdfe6;
+            border-radius: 5px;
+            padding: 10px 15px;
+            text-align: left;
+            transition: all 0.3s;
+            font-size: 14px;
+            color: #606266;
+        }
+        .option-content:hover { border-color: #8e53c4; background-color: #f9f2ff; }
+        .option-content.active { border-color: #8e53c4; background-color: #e0d0ed; color: #8e53c4; font-weight: bold; }
+        
+        /* 按钮 */
+        .btn-group { text-align: center; margin-top: 40px; }
+        .btn {
+            background-color: #8e53c4;
+            color: white;
+            border: none;
+            padding: 10px 30px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            outline: none;
+            transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled { background-color: #ccc; cursor: not-allowed; }
+        .btn-prev { background-color: #fff; color: #999; border: 1px solid #ddd; margin-right: 15px; }
+        .btn-prev:hover { background-color: #f5f5f5; }
+
+        /* 结果页样式 */
+        .themeColor { color: #8e53c4; font-weight: bold; }
+        .otherColor { color: #666; font-weight: bold; }
+        .result-section { margin-bottom: 30px; }
+        .result-list-item { display: flex; align-items: center; margin-bottom: 15px; font-size: 13px; }
+        .result-label { width: 85px; text-align: left; color: #606266; }
+        .result-desc { margin-left: 10px; font-weight: bold; font-size: 12px; color: #333; }
+        .result-score { margin-left: auto; color: #999; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div class="talent-selftest-box">
+        <div v-if="!isSubmitted" class="talent-selftest-container">
+            <h1 class="talent-title">天赋自测</h1>
+            <p class="provenance">本测试来自北京联合出版公司出版社的《做自己擅长的事，还是喜欢的？》，作者[奥] Aljoscha Neubauer。</p>
+            <div class="talent-intro">说明：总共{{ questions.length }}题，每题5个选项。</div>
+            
+            <div class="progress">
+                <span>{{ currentQuestionIndex + 1 }} / {{ questions.length }}</span>
+                <el-progress :percentage="(currentQuestionIndex + 1) / questions.length * 100" :show-text="false" color="#8e53c4" :stroke-width="12" style="width: 200px; display: inline-block; margin-left: 10px;"></el-progress>
+            </div>
+
+            <div class="question-container">
+                <div class="question-title">{{ questions[currentQuestionIndex].question }}</div>
+                
+                <div class="question-options">
+                    <label v-for="(label, index) in optionLabels" :key="index" class="option">
+                        <input type="radio" class="hidden" style="display:none" 
+                               :name="'q'+currentQuestionIndex" 
+                               :value="label.val" 
+                               :checked="answers[currentQuestionIndex] == label.val"
+                               @change="handleAnswerChange(label.val)">
+                        <div class="option-content" :class="{active: answers[currentQuestionIndex] == label.val}">
+                            {{ label.text }}
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn btn-prev" @click="prevQuestion" :disabled="currentQuestionIndex === 0">上一题</button>
+                <button class="btn" @click="nextOrSubmit">
+                    {{ currentQuestionIndex < questions.length - 1 ? '下一题' : '查看结果' }}
+                </button>
+            </div>
+        </div>
+
+        <div v-else class="talent-selftest-container">
+            <h1 class="talent-title">恭喜完成测试</h1>
+            
+            <div style="text-align: justify; margin-bottom: 30px; font-size: 15px; line-height: 1.6;">
+                <span>你最具有 </span>
+                <span class="themeColor">{{ adeptAbility }}</span>
+                <span>； 然而 </span>
+                <span class="otherColor">{{ ineffectual }}</span>
+                <span>相对较弱。</span>
+            </div>
+
+            <div class="result-section" style="display: flex; flex-direction: column; align-items: center;">
+                <h2 style="font-size: 18px; margin-bottom: 20px;">天赋能力图</h2>
+                <div ref="chart" style="width: 100%; height: 300px;"></div>
+            </div>
+
+            <div class="result-section">
+                <h2 style="font-size: 18px; margin-bottom: 20px;">各项天赋分值</h2>
+                <div v-for="(item, index) in sortedResultsArr" :key="index" class="result-list-item">
+                    <span style="width: 20px; color:#ccc;">{{ index + 1 }}.</span>
+                    <span class="result-label">{{ talents[item.name].replace('天赋','') }}:</span>
+                    <el-progress :percentage="item.value / 20 * 100" :show-text="false" color="#8e53c4" :stroke-width="12" style="width: 120px;"></el-progress>
+                    <span class="result-desc">{{ getAbilityLevel(item.value) }}</span>
+                    <span class="result-score">{{ item.value }}分</span>
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn" @click="handleRetest">重新测试</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    new Vue({
+        el: '#app',
+        data: {
+            isSubmitted: false,
+            currentQuestionIndex: 0,
+            answers: {}, // 存储答案 {0: 5, 1: 3, ...}
+            scores: {},  // 存储得分 {A: 15, B: 10 ...}
+            abilityChart: null,
+            adeptAbility: "",
+            ineffectual: "",
+            sortedResultsArr: [],
+            
+            // 选项定义
+            optionLabels: [
+                { val: 5, text: "非常符合" },
+                { val: 4, text: "很符合" },
+                { val: 3, text: "部分符合" },
+                { val: 2, text: "不太符合" },
+                { val: 1, text: "完全不符合" }
+            ],
+
+            // 天赋类别映射
+            talents: {
+                A: "语言天赋",
+                B: "逻辑-算数天赋",
+                C: "空间天赋",
+                D: "内省天赋",
+                E: "人际天赋",
+                F: "身体-动觉天赋",
+                G: "音乐天赋",
+                H: "自然天赋",
+                I: "创造天赋",
+                J: "美学天赋"
+            },
+
+            // 40道完整题目（已解码）
+            questions: [
+                { category: "J", question: "我擅长用艺术性的方式做事？" },
+                { category: "E", question: "我擅长给别人传授知识" },
+                { category: "F", question: "我擅长需要手眼协调的任务" },
+                { category: "F", question: "我擅长流畅准确地完成一系列动作" },
+                { category: "G", question: "我擅长跟随音乐的节拍" },
+                { category: "H", question: "我擅长判断动物的需求" },
+                { category: "J", question: "我擅长刻画塑造事物" },
+                { category: "F", question: "我擅长需要手指灵巧的任务" },
+                { category: "A", question: "我擅长清楚明白地阐述事情" },
+                { category: "J", question: "我擅长让配色协调" },
+                { category: "B", question: "我擅长理解公式" },
+                { category: "F", question: "我擅长与身体相关的任务" },
+                { category: "I", question: "我擅长产出丰富的想法" },
+                { category: "C", question: "我擅长空间想象和思考" },
+                { category: "I", question: "我擅长找到不同寻常的问题解决办法" },
+                { category: "B", question: "我擅长有逻辑地思考问题" },
+                { category: "B", question: "我擅长理解数学问题" },
+                { category: "A", question: "我擅长用我的语言说服对方" },
+                { category: "D", question: "我擅长识别和理解我的情绪" },
+                { category: "B", question: "我擅长用数学方式进行论述" },
+                { category: "C", question: "我擅长从不同视角想象物体" },
+                { category: "A", question: "我擅长用语言来表达想法" },
+                { category: "D", question: "我擅长认识到我的愿望和需求，并与人交流" },
+                { category: "E", question: "我擅长替别人着想" },
+                { category: "I", question: "我擅长拥有破框思维" },
+                { category: "C", question: "我擅长空间定位" },
+                { category: "D", question: "我擅长遇到压力时让自己平静" },
+                { category: "C", question: "我擅长根据说明将事物在脑海中呈现出来" },
+                { category: "E", question: "我擅长与别人打交道" },
+                { category: "H", question: "我擅长与不熟悉的动物共处" },
+                { category: "G", question: "我擅长听到旋律中细微的不和谐之处" },
+                { category: "H", question: "我擅长照料不同种类的植物" },
+                { category: "G", question: "我擅长唱歌" },
+                { category: "D", question: "我擅长在时间紧迫的情况下处理问题" },
+                { category: "H", question: "我擅长识别不同草药并在工作中使用它们" },
+                { category: "I", question: "我擅长原创性思考" },
+                { category: "J", question: "我擅长装饰空间" },
+                { category: "A", question: "我擅长迅速理解对方想要给我传达什么信息" },
+                { category: "G", question: "我擅长学习不同种类的乐器" },
+                { category: "E", question: "我擅长在人与人之间斡旋" }
+            ]
+        },
+        methods: {
+            handleAnswerChange(val) {
+                this.$set(this.answers, this.currentQuestionIndex, val);
+                // 自动跳题体验
+                if (this.currentQuestionIndex < this.questions.length - 1) {
+                    setTimeout(() => {
+                        this.currentQuestionIndex++;
+                    }, 300);
+                }
+            },
+            prevQuestion() {
+                if (this.currentQuestionIndex > 0) this.currentQuestionIndex--;
+            },
+            nextOrSubmit() {
+                if (!this.answers[this.currentQuestionIndex]) {
+                    this.$message.warning("请先选择一个选项");
+                    return;
+                }
+                if (this.currentQuestionIndex < this.questions.length - 1) {
+                    this.currentQuestionIndex++;
+                } else {
+                    this.calculateResult();
+                }
+            },
+            calculateResult() {
+                // 计算得分
+                this.scores = {};
+                this.questions.forEach((q, idx) => {
+                    const score = this.answers[idx] || 0;
+                    const cat = q.category;
+                    if (!this.scores[cat]) this.scores[cat] = 0;
+                    this.scores[cat] += parseInt(score);
+                });
+
+                // 排序逻辑
+                const entries = Object.entries(this.scores).map(([key, val]) => ({
+                    name: key,
+                    value: val
+                }));
+                // 按分数降序
+                entries.sort((a, b) => b.value - a.value);
+                this.sortedResultsArr = entries;
+
+                // 提取最强和最弱
+                this.adeptAbility = entries.slice(0, 3).map(e => this.talents[e.name]).join('、');
+                this.ineffectual = [...entries].reverse().slice(0, 3).map(e => this.talents[e.name]).join('、');
+
+                this.isSubmitted = true;
+                this.$nextTick(() => {
+                    this.initChart(entries);
+                });
+            },
+            getAbilityLevel(score) {
+                if (score >= 16) return "非常擅长";
+                if (score >= 12) return "有些擅长";
+                if (score >= 8) return "不太擅长";
+                return "完全不擅长";
+            },
+            initChart(dataEntries) {
+                // 按照原版逻辑，雷达图需要按字母顺序排序，而不是按分数排序
+                const sortedForChart = [...dataEntries].sort((a, b) => a.name.localeCompare(b.name));
+                const indicator = sortedForChart.map(item => ({
+                    name: this.talents[item.name].replace('天赋','') + `(${item.value}分)`,
+                    max: 20
+                }));
+                const values = sortedForChart.map(item => item.value);
+
+                const chartDom = this.$refs.chart;
+                this.abilityChart = echarts.init(chartDom);
+                
+                const option = {
+                    radar: {
+                        indicator: indicator,
+                        axisName: {
+                            color: "#8E53C4",
+                            backgroundColor: "#F4EFF8",
+                            borderRadius: 3,
+                            padding: [3, 5]
+                        },
+                        splitArea: {
+                            areaStyle: {
+                                color: ['#fff', '#f4eff8'] // 模仿原版网格背景
+                            }
+                        }
+                    },
+                    series: [{
+                        type: 'radar',
+                        data: [{
+                            value: values,
+                            name: '天赋能力',
+                            itemStyle: { color: '#8E53C4' },
+                            areaStyle: { color: 'rgba(142, 83, 196, 0.2)' }
+                        }]
+                    }]
+                };
+                this.abilityChart.setOption(option);
+            },
+            handleRetest() {
+                this.answers = {};
+                this.currentQuestionIndex = 0;
+                this.isSubmitted = false;
+                this.scores = {};
+            }
+        }
+    });
+</script>
+</body>
+</html>
