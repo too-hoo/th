@@ -2,377 +2,405 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>口袋补光灯 Pro | 专业版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>口袋补光灯 Ultimate</title>
     <style>
-        /* --- 1. 基础设置 --- */
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body, html { height: 100%; width: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #000; }
-
-        /* --- 2. 发光核心层 --- */
-        /* 主色层 (Base Color): 使用 HSL 颜色模式 */
-        #light-base {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: hsl(0, 100%, 50%); /* 默认红色 */
-            z-index: 1;
-            transition: background-color 0.1s ease;
+        /* --- 1. 全局重置 --- */
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body, html { 
+            height: 100%; width: 100%; 
+            overflow: hidden; /* 禁止页面滚动 */
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            background-color: #000; /* 兜底背景 */
+            user-select: none; -webkit-user-select: none; /* 禁止选中文本 */
         }
-        /* 色温层 (Temperature Overlay): 叠加在主色层之上 */
-        #light-temp {
+
+        /* --- 2. 发光层 (核心) --- */
+        /* 默认设置为白色，防止JS加载失败导致黑屏 */
+        #light-layer {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: transparent; /* 默认无色温叠加 */
+            background-color: #ffffff; 
+            z-index: 1; 
+            transition: background-color 0.2s ease; /* 颜色切换过渡 */
+        }
+
+        /* 色温遮罩层 (冷暖调节) */
+        #temp-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: transparent;
             z-index: 2;
-            pointer-events: none; /* 确保点击事件能穿透到下面的层 */
-            transition: background-color 0.1s ease;
+            pointer-events: none; /* 允许点击穿透 */
+            transition: background-color 0.1s linear;
         }
 
-        /* --- 3. 控制面板 (仿iOS风格) --- */
-        #controls-container {
-            position: fixed;
-            bottom: 20px; left: 50%;
+        /* --- 3. UI 交互层 --- */
+        /* 全屏点击感应区 (仅在沉浸模式下有效) */
+        #touch-trigger {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 50;
+            display: none; /* 默认隐藏 */
+        }
+
+        /* 菜单容器 */
+        #menu-container {
+            position: fixed; 
+            bottom: 40px; 
+            left: 50%; 
             transform: translateX(-50%);
-            width: 90%; max-width: 380px;
-            z-index: 10;
-            transition: opacity 0.3s, transform 0.3s;
-        }
-        /* 隐藏状态的样式 */
-        .hidden { opacity: 0; transform: translateX(-50%) translateY(20px); pointer-events: none; }
-
-        #controls-box {
-            background: rgba(30, 30, 30, 0.85); /* 深色半透明背景 */
-            backdrop-filter: blur(20px);         /* 毛玻璃特效 */
-            -webkit-backdrop-filter: blur(20px);
-            padding: 20px;
-            border-radius: 24px;
-            color: #fff;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            width: 92%; max-width: 420px;
+            z-index: 100; /* 保证在最上层 */
+            transition: opacity 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            padding-bottom: env(safe-area-inset-bottom);
         }
 
-        /* --- 4. UI 组件样式 --- */
-        /* 标题行 */
-        .panel-header { font-size: 15px; font-weight: 600; text-align: center; margin-bottom: 18px; opacity: 0.9; letter-spacing: 0.5px; }
-        
-        /* 图标 + 滑块行 */
-        .slider-row {
-            display: flex; align-items: center; gap: 12px; margin-bottom: 18px;
-        }
-        .slider-icon { font-size: 20px; width: 24px; text-align: center; opacity: 0.8; }
-
-        /* 滑块统一样式 (去除浏览器默认样式，自定义轨道和滑块) */
-        input[type=range] {
-            -webkit-appearance: none; width: 100%; height: 26px; border-radius: 13px; outline: none; cursor: pointer;
-        }
-        
-        /* --- 滑块轨道背景自定义 --- */
-        /* 调色盘轨道：显示光谱 */
-        #hue-slider { background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
-        /* 亮度轨道：黑到白 */
-        #brightness-slider { background: linear-gradient(to right, #000, #fff); }
-        /* 色温轨道：冷蓝到暖橙 */
-        #temp-slider { background: linear-gradient(to right, #a3d1ff, #ffffff, #ffb347); }
-
-        /* 滑块把手 (Thumb) 样式 */
-        input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none; appearance: none;
-            width: 30px; height: 30px;
-            border-radius: 50%;
-            background: #fff;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-            border: 2px solid rgba(0,0,0,0.1);
+        /* 隐藏动画状态 */
+        .ui-hidden {
+            opacity: 0;
+            transform: translateX(-50%) translateY(40px) scale(0.95) !important;
+            pointer-events: none;
         }
 
-        /* --- 5. 颜色预设卡片 (Top Row) --- */
-        .swatch-grid {
-            display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 24px;
+        /* 磨砂玻璃面板 */
+        .glass-panel {
+            background: rgba(20, 20, 20, 0.85);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border-radius: 28px;
+            padding: 24px 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: white;
         }
-        .swatch {
-            width: 100%; padding-bottom: 100%; /* 保持正方形比例 */
-            border-radius: 10px; cursor: pointer;
-            box-shadow: inset 0 0 0 2px rgba(255,255,255,0); /* 默认无边框 */
-            transition: transform 0.1s, box-shadow 0.2s;
+
+        /* --- 4. 颜色选择栏 (横向滚动) --- */
+        .scroll-wrapper {
+            display: flex; gap: 12px; overflow-x: auto; 
+            padding: 4px; margin: -4px -4px 24px -4px; /* 增加点击区域 */
+            scrollbar-width: none; -ms-overflow-style: none; /* 隐藏滚动条 */
+        }
+        .scroll-wrapper::-webkit-scrollbar { display: none; }
+
+        .color-dot {
+            width: 54px; height: 54px; flex-shrink: 0; 
+            border-radius: 14px; 
+            cursor: pointer;
+            border: 2px solid transparent; /* 选中时的边框占位 */
+            transition: transform 0.1s, border-color 0.2s;
             position: relative;
         }
-        .swatch:active { transform: scale(0.92); }
-        /* 选中状态：增加白色边框 */
-        .swatch.active { box-shadow: inset 0 0 0 3px #fff; }
-        
-        /* 预设颜色定义 (莫兰迪色系 + 常用色) */
-        /* 使用 HSL 值: hsl(色相, 饱和度%, 亮度%) */
-        .s-1 { background: hsl(350, 40%, 80%); } /* 莫兰迪粉 */
-        .s-2 { background: hsl(210, 30%, 75%); } /* 莫兰迪蓝 */
-        .s-3 { background: hsl(150, 25%, 80%); } /* 莫兰迪绿 */
-        .s-4 { background: hsl(40, 60%, 80%); }  /* 柔和奶黄 */
-        .s-5 { background: hsl(0, 0%, 100%); }   /* 纯白补光 */
-        .s-6 { background: linear-gradient(135deg, #ff9a9e, #fad0c4); } /* 网红落日渐变 (特殊处理) */
-
-        /* --- 6. 沉浸模式提示与开关 --- */
-        #immersive-tip {
-            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: rgba(255,255,255,0.4); font-size: 15px; pointer-events: none;
-            opacity: 0; transition: opacity 0.3s; z-index: 5; text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        .color-dot:active { transform: scale(0.9); }
+        .color-dot.active { 
+            border-color: #fff; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            transform: translateY(-2px);
         }
-        .tip-visible { opacity: 1 !important; }
 
-        /* 全屏按钮容器 */
-        #toggle-btn-container {
-            text-align: center; margin-top: 15px;
+        /* --- 5. 滑动条样式 --- */
+        .control-row { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; }
+        .icon { font-size: 20px; width: 24px; text-align: center; opacity: 0.9; }
+
+        /* 自定义 Range Input */
+        input[type=range] {
+            -webkit-appearance: none; width: 100%; height: 32px; 
+            border-radius: 16px; outline: none; margin: 0;
+            touch-action: none; /* 关键：防止手机滑动页面 */
         }
-        /* 全屏按钮样式 */
-        .toggle-btn {
+
+        /* 滑块轨道背景 */
+        #slider-hue { background: linear-gradient(to right, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%); }
+        #slider-bright { background: linear-gradient(to right, #000, #fff); }
+        #slider-temp { background: linear-gradient(to right, #89CFF0, #ffffff, #FFD700); }
+
+        /* 滑块按钮 (Thumb) */
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 32px; height: 32px; 
+            border-radius: 50%; background: #fff;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            border: 0.5px solid rgba(0,0,0,0.1);
+        }
+
+        /* --- 6. 底部按钮 --- */
+        .btn-wrapper { text-align: center; margin-top: 15px; }
+        .action-btn {
             background: rgba(255,255,255,0.15); color: #fff; border: none;
-            padding: 12px 24px; border-radius: 24px; font-size: 15px; font-weight: 500;
-            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-            display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
-            transition: background 0.2s;
+            padding: 12px 28px; border-radius: 30px; 
+            font-size: 15px; font-weight: 600;
+            backdrop-filter: blur(10px);
+            display: inline-flex; align-items: center; gap: 8px;
         }
-        .toggle-btn:active { background: rgba(255,255,255,0.25); }
+
+        /* 提示语 */
+        #tips {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: rgba(255,255,255,0.6); font-size: 16px; pointer-events: none;
+            opacity: 0; transition: opacity 0.3s; z-index: 200;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
 
     </style>
 </head>
 <body>
-    <div id="light-base"></div> <div id="light-temp"></div> <div id="immersive-tip">轻点屏幕唤起菜单</div>
 
-    <div id="controls-container">
-        <div id="controls-box">
-            <div class="panel-header">专业补光控制</div>
+    <div id="light-layer"></div> <div id="temp-overlay"></div> <div id="touch-trigger"></div>
 
-            <div class="swatch-grid">
-                <div class="swatch s-1 active" data-hsl="350,40,80"></div>
-                <div class="swatch s-2" data-hsl="210,30,75"></div>
-                <div class="swatch s-3" data-hsl="150,25,80"></div>
-                <div class="swatch s-4" data-hsl="40,60,80"></div>
-                <div class="swatch s-5" data-hsl="0,0,100"></div>
-                <div class="swatch s-6" data-is-sunset="true"></div>
-            </div>
+    <div id="tips">轻点屏幕唤起菜单</div>
 
-            <div class="slider-row">
-                <div class="slider-icon" style="color: #ff6b81;">🎨</div>
-                <input type="range" id="hue-slider" min="0" max="360" value="350">
-            </div>
+    <div id="menu-container">
+        <div class="glass-panel">
+            
+            <div class="scroll-wrapper" id="swatch-list">
+                </div>
 
-            <div class="slider-row">
-                <div class="slider-icon" style="color: #feca57;">☀️</div>
-                <input type="range" id="brightness-slider" min="0" max="100" value="80">
-            </div>
-
-            <div class="slider-row">
-                <div class="slider-icon" style="font-size: 16px; color: #54a0ff;">❄️</div>
-                <input type="range" id="temp-slider" min="0" max="100" value="50">
-                <div class="slider-icon" style="font-size: 16px; color: #ff9f43;">🔥</div>
+            <div class="control-row">
+                <div class="icon" style="color:#ff6b81">🎨</div>
+                <input type="range" id="slider-hue" min="0" max="360" value="0">
             </div>
             
-            <div style="text-align: center; font-size: 11px; opacity: 0.5; margin-top: 12px;">
-                💡 提示: 请手动将手机屏幕亮度调至最高以获得最佳效果
+            <div class="control-row">
+                <div class="icon" style="color:#feca57">☀️</div>
+                <input type="range" id="slider-bright" min="0" max="100" value="100">
             </div>
 
+            <div class="control-row">
+                <div class="icon" style="color:#89CFF0">❄️</div>
+                <input type="range" id="slider-temp" min="0" max="100" value="50">
+                <div class="icon" style="color:#FFD700">🔥</div>
+            </div>
         </div>
-        
-        <div id="toggle-btn-container">
-            <button class="toggle-btn" id="fullscreen-btn">
-                <span>📺 进入沉浸模式 (全屏)</span>
+
+        <div class="btn-wrapper">
+            <button class="action-btn" id="btn-fullscreen">
+                <span>📺 进入沉浸模式</span>
             </button>
         </div>
     </div>
 
-
     <script>
-        // === 获取 DOM 元素 ===
-        const lightBase = document.getElementById('light-base');
-        const lightTemp = document.getElementById('light-temp');
-        const controlsContainer = document.getElementById('controls-container');
-        const immersiveTip = document.getElementById('immersive-tip');
-        const fullscreenBtn = document.getElementById('fullscreen-btn');
-        
-        const hueSlider = document.getElementById('hue-slider');
-        const brightnessSlider = document.getElementById('brightness-slider');
-        const tempSlider = document.getElementById('temp-slider');
-        const swatches = document.querySelectorAll('.swatch');
+        // === 1. 数据定义 ===
+        // 预设颜色列表 (type: 'color' | 'gradient')
+        const PRESETS = [
+            // 莫兰迪色系 (Morandi)
+            { h: 350, s: 40, l: 85, name: 'M-Pink' },
+            { h: 210, s: 30, l: 75, name: 'M-Blue' },
+            { h: 260, s: 25, l: 80, name: 'M-Purple' },
+            { h: 45,  s: 60, l: 85, name: 'M-Yellow' },
+            { h: 30,  s: 40, l: 85, name: 'M-Beige' },
+            // 基础白
+            { h: 0,   s: 0,  l: 100, name: 'White' },
+            // 高亮色系 (Brights)
+            { h: 120, s: 80, l: 60, name: 'Green' },
+            { h: 195, s: 90, l: 60, name: 'SkyBlue' },
+            { h: 180, s: 70, l: 75, name: 'Cyan' },
+            { h: 270, s: 80, l: 70, name: 'Purple' },
+            { h: 300, s: 100, l: 60, name: 'Magenta' },
+            { h: 330, s: 100, l: 65, name: 'HotPink' },
+            { h: 0,   s: 90, l: 60, name: 'Red' },
+            { h: 25,  s: 100, l: 60, name: 'Orange' },
+            // 特殊: 落日
+            { type: 'gradient', name: 'Sunset' } 
+        ];
 
-        // === 状态变量 ===
-        // 默认颜色状态 (对应第一个莫兰迪粉色卡)
-        let currentHue = 350;
-        let currentSat = 40; // 饱和度
-        let currentLight = 80; // 亮度
-        let isSunsetMode = false; // 是否是落日模式
-        let isImmersive = false;  // 是否是沉浸模式
-        let wakeLock = null;      // 屏幕常亮锁对象
+        // 状态管理
+        const state = {
+            hue: 0,
+            sat: 0,
+            light: 100,
+            temp: 50,
+            isGradient: false
+        };
 
-        // === 核心功能函数 ===
+        // === 2. DOM 元素获取 ===
+        const els = {
+            light: document.getElementById('light-layer'),
+            tempOverlay: document.getElementById('temp-overlay'),
+            menu: document.getElementById('menu-container'),
+            trigger: document.getElementById('touch-trigger'),
+            tips: document.getElementById('tips'),
+            swatchList: document.getElementById('swatch-list'),
+            sliderHue: document.getElementById('slider-hue'),
+            sliderBright: document.getElementById('slider-bright'),
+            sliderTemp: document.getElementById('slider-temp'),
+            btnFull: document.getElementById('btn-fullscreen')
+        };
 
-        // 1. 更新灯光 (根据当前的 HSL 和色温状态刷新屏幕显示)
-        function updateLight() {
-            // --- 处理主色层 ---
-            if (isSunsetMode) {
-                // 如果是落日模式，直接设置渐变背景
-                lightBase.style.background = 'linear-gradient(135deg, #ff9a9e, #fad0c4)';
-            } else {
-                // 否则，使用 HSL 颜色值拼接: hsl(色相, 饱和度%, 亮度%)
-                const color = `hsl(${currentHue}, ${currentSat}%, ${currentLight}%)`;
-                lightBase.style.background = color;
-            }
-
-            // --- 处理色温层 (独立于颜色叠加) ---
-            const tempValue = parseInt(tempSlider.value);
-            // 50 为中性点
-            if (tempValue < 50) {
-                // 向左滑动：变冷 (叠加天蓝色，透明度随距离增加)
-                const opacity = (50 - tempValue) / 50 * 0.5; // 最大 50% 透明度
-                lightTemp.style.background = `rgba(135, 206, 235, ${opacity})`;
-            } else if (tempValue > 50) {
-                // 向右滑动：变暖 (叠加橙色，透明度随距离增加)
-                const opacity = (tempValue - 50) / 50 * 0.5; // 最大 50% 透明度
-                lightTemp.style.background = `rgba(255, 165, 0, ${opacity})`;
-            } else {
-                // 中间位置：无叠加
-                lightTemp.style.background = 'transparent';
-            }
+        // === 3. 初始化逻辑 ===
+        function init() {
+            renderSwatches();
+            // 默认选中白色
+            selectPreset(5); 
+            updateRender();
             
-            // 更新沉浸模式提示文字的颜色，确保在亮/暗背景下都可见
-            // 简单逻辑：如果亮度大于 60，提示文字用深色，否则用浅色
-            immersiveTip.style.color = currentLight > 60 ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.5)';
+            // 绑定事件
+            bindEvents();
         }
 
-        // 2. 处理预设色卡点击事件
-        swatches.forEach(swatch => {
-            swatch.addEventListener('click', function() {
-                // 移除所有色卡的激活状态，激活当前点击的
-                swatches.forEach(s => s.classList.remove('active'));
-                this.classList.add('active');
-
-                // 检查是否是特殊的落日模式
-                if (this.dataset.isSunset === "true") {
-                    isSunsetMode = true;
-                    // 禁用调色盘和亮度滑块，因为渐变模式下这些不可调
-                    setSlidersDisabled(true);
+        // 渲染色块
+        function renderSwatches() {
+            PRESETS.forEach((p, index) => {
+                const dot = document.createElement('div');
+                dot.className = 'color-dot';
+                dot.dataset.index = index;
+                
+                // 设置色块预览色
+                if (p.type === 'gradient') {
+                    dot.style.background = 'linear-gradient(135deg, #ff9a9e, #fad0c4)';
                 } else {
-                    // 普通颜色模式
-                    isSunsetMode = false;
-                    // 启用滑块
-                    setSlidersDisabled(false);
-
-                    // 从 data-hsl 属性中读取预设的 "H,S,L" 值
-                    const hslValues = this.dataset.hsl.split(',');
-                    currentHue = parseInt(hslValues[0]);
-                    currentSat = parseInt(hslValues[1]);
-                    currentLight = parseInt(hslValues[2]);
-
-                    // 同步更新滑块的位置到预设值
-                    hueSlider.value = currentHue;
-                    brightnessSlider.value = currentLight;
+                    dot.style.background = `hsl(${p.h}, ${p.s}%, ${p.l}%)`;
                 }
-                // 应用更新
-                updateLight();
+                
+                // 点击事件
+                dot.addEventListener('click', (e) => {
+                    // 滚动居中优化
+                    e.target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                    selectPreset(index);
+                });
+
+                els.swatchList.appendChild(dot);
             });
-        });
-
-        // 辅助函数：禁用/启用 Hue 和 Brightness 滑块状态
-        function setSlidersDisabled(disabled) {
-            hueSlider.disabled = disabled;
-            brightnessSlider.disabled = disabled;
-            // 通过透明度变化给予视觉反馈
-            const opacity = disabled ? 0.4 : 1;
-            hueSlider.parentElement.style.opacity = opacity;
-            brightnessSlider.parentElement.style.opacity = opacity;
         }
 
-        // 3. 处理滑块拖动事件
-        // 调色盘 (Hue) 滑动
-        hueSlider.addEventListener('input', (e) => {
-            currentHue = e.target.value;
-            // 重要：拖动调色盘时，将饱和度恢复到较高的鲜艳状态
-            // (否则如果在莫兰迪色(低饱和)基础上拖动，颜色会很灰)
-            currentSat = 85; 
-            // 取消所有预设卡片的选中状态，因为现在是自定义颜色
-            swatches.forEach(s => s.classList.remove('active'));
-            isSunsetMode = false;
-            updateLight();
-        });
-
-        // 亮度 (Lightness) 滑动
-        brightnessSlider.addEventListener('input', (e) => {
-            currentLight = e.target.value;
-            // 如果在落日模式下误触亮度条，退出落日模式并重置饱和度
-            if (isSunsetMode) {
-                isSunsetMode = false;
-                currentSat = 85;
-                swatches.forEach(s => s.classList.remove('active'));
-                setSlidersDisabled(false);
-            }
-            updateLight();
-        });
-
-        // 色温 (Temperature) 滑动
-        tempSlider.addEventListener('input', (e) => {
-            // 色温是独立的叠加层，直接更新即可
-            updateLight();
-        });
-
-        // === 交互与功能 ===
-
-        // 切换沉浸模式 (显示/隐藏面板并全屏)
-        function toggleImmersiveMode() {
-            isImmersive = !isImmersive;
-            if (isImmersive) {
-                // 进入沉浸：隐藏面板，显示提示，全屏，申请常亮
-                controlsContainer.classList.add('hidden');
-                immersiveTip.classList.add('tip-visible');
-                enterFullScreen();
-                requestWakeLock();
-                // 3秒后自动隐藏提示文字
-                setTimeout(() => {
-                    immersiveTip.classList.remove('tip-visible');
-                }, 3000);
-            } else {
-                // 退出沉浸：显示面板，隐藏提示，退出全屏
-                controlsContainer.classList.remove('hidden');
-                immersiveTip.classList.remove('tip-visible');
-                exitFullScreen();
-            }
-        }
-
-        // 点击全屏按钮
-        fullscreenBtn.addEventListener('click', toggleImmersiveMode);
-
-        // 点击屏幕任意位置退出沉浸模式 (排除控制面板区域)
-        document.body.addEventListener('click', (e) => {
-            // 如果点击的是控制面板内部，则不执行退出逻辑
-            if (controlsContainer.contains(e.target)) return;
+        // 选中预设
+        function selectPreset(index) {
+            const preset = PRESETS[index];
             
-            // 只有在沉浸模式下点击才触发退出
-            if (isImmersive) {
-                toggleImmersiveMode();
-            }
-        });
+            // UI 更新: 高亮选中态
+            document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+            els.swatchList.children[index].classList.add('active');
 
-        // 屏幕常亮 API (核心功能，需要 HTTPS 环境)
+            // 逻辑更新
+            if (preset.type === 'gradient') {
+                state.isGradient = true;
+                // 渐变模式下禁用颜色滑块，但保留亮度
+                disableSlider(els.sliderHue, true);
+            } else {
+                state.isGradient = false;
+                state.hue = preset.h;
+                state.sat = preset.s;
+                state.light = preset.l;
+                
+                // 同步滑块位置
+                els.sliderHue.value = state.hue;
+                els.sliderBright.value = state.light;
+                disableSlider(els.sliderHue, false);
+            }
+            updateRender();
+        }
+
+        // 核心渲染函数
+        function updateRender() {
+            // 1. 渲染底色
+            if (state.isGradient) {
+                els.light.style.background = 'linear-gradient(135deg, #ff9a9e 10%, #fad0c4 90%)';
+            } else {
+                els.light.style.background = `hsl(${state.hue}, ${state.sat}%, ${state.light}%)`;
+            }
+
+            // 2. 渲染色温
+            const t = state.temp;
+            if (t < 50) {
+                // 变冷 (叠加淡蓝)
+                const opacity = (50 - t) / 50 * 0.5;
+                els.tempOverlay.style.background = `rgba(137, 207, 240, ${opacity})`;
+            } else if (t > 50) {
+                // 变暖 (叠加橙黄)
+                const opacity = (t - 50) / 50 * 0.5;
+                els.tempOverlay.style.background = `rgba(255, 200, 50, ${opacity})`;
+            } else {
+                els.tempOverlay.style.background = 'transparent';
+            }
+
+            // 3. 动态调整提示文字颜色 (深色背景用白字，浅色背景用黑字)
+            // 简单估算：如果在渐变模式或亮度>60，则认为是亮背景
+            const isLightBg = state.light > 60 || state.isGradient;
+            els.tips.style.color = isLightBg ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.6)';
+        }
+
+        // 绑定滑块和按钮事件
+        function bindEvents() {
+            // 色相拖动
+            els.sliderHue.addEventListener('input', (e) => {
+                state.hue = parseInt(e.target.value);
+                state.sat = 85; // 拖动时增加饱和度
+                state.isGradient = false; // 退出渐变模式
+                // 移除色块选中态
+                document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+                disableSlider(els.sliderHue, false);
+                updateRender();
+            });
+
+            // 亮度拖动
+            els.sliderBright.addEventListener('input', (e) => {
+                state.light = parseInt(e.target.value);
+                // 如果在渐变模式下动了亮度，是否退出？
+                // 策略：如果是渐变模式，亮度滑块暂时只影响 overlay 透明度太复杂，
+                // 简单起见：如果动了亮度，退出渐变模式，回到当前颜色的纯色态
+                if (state.isGradient) {
+                    state.isGradient = false;
+                    state.hue = 350; state.sat = 50; // 重置为默认粉
+                    document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+                    disableSlider(els.sliderHue, false);
+                }
+                updateRender();
+            });
+
+            // 色温拖动
+            els.sliderTemp.addEventListener('input', (e) => {
+                state.temp = parseInt(e.target.value);
+                updateRender();
+            });
+
+            // 沉浸模式切换
+            els.btnFull.addEventListener('click', toggleImmersive);
+            els.trigger.addEventListener('click', toggleImmersive); // 点击空白处唤醒
+        }
+
+        // 切换沉浸模式逻辑
+        let isHidden = false;
+        function toggleImmersive() {
+            isHidden = !isHidden;
+            
+            if (isHidden) {
+                // 进入沉浸：隐藏菜单，显示唤醒层
+                els.menu.classList.add('ui-hidden');
+                els.trigger.style.display = 'block'; 
+                requestWakeLock();
+                enterFullscreen();
+                
+                // 显示提示3秒
+                els.tips.style.opacity = 1;
+                setTimeout(() => { els.tips.style.opacity = 0; }, 2500);
+            } else {
+                // 退出沉浸：显示菜单，隐藏唤醒层
+                els.menu.classList.remove('ui-hidden');
+                els.trigger.style.display = 'none';
+                els.tips.style.opacity = 0;
+            }
+        }
+
+        // 工具函数：禁用滑块样式
+        function disableSlider(slider, isDisabled) {
+            slider.parentElement.style.opacity = isDisabled ? 0.3 : 1;
+            // 注意：不真正 disabled input，否则样式会很难看，只做视觉降级
+        }
+
+        // 屏幕常亮
         async function requestWakeLock() {
             if ('wakeLock' in navigator) {
-                try {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    console.log('屏幕常亮已激活');
-                } catch (err) { console.error('常亮激活失败:', err); }
+                try { await navigator.wakeLock.request('screen'); } 
+                catch (err) { console.log('WakeLock skipped'); }
             }
         }
-        // 当用户切换应用重新回到页面时，尝试再次激活常亮 (防止失效)
-        document.addEventListener('visibilitychange', async () => {
-            if (wakeLock !== null && document.visibilityState === 'visible') {
-                requestWakeLock();
-            }
-        });
 
-        // 浏览器全屏 API 的兼容写法
-        function enterFullScreen() {
-            const docElm = document.documentElement;
-            if (docElm.requestFullscreen) { docElm.requestFullscreen(); }
-            else if (docElm.webkitRequestFullScreen) { docElm.webkitRequestFullScreen(); }
-        }
-        function exitFullScreen() {
-            if (document.exitFullscreen) { document.exitFullscreen(); }
-            else if (document.webkitExitFullscreen) { document.webkitExitFullscreen(); }
+        // 全屏 API
+        function enterFullscreen() {
+            const el = document.documentElement;
+            if (el.requestFullscreen) el.requestFullscreen();
+            else if (el.webkitRequestFullScreen) el.webkitRequestFullScreen();
         }
 
-        // === 初始化执行 ===
-        updateLight(); // 页面加载时应用默认状态
+        // 启动
+        init();
 
     </script>
 </body>
