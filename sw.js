@@ -1,5 +1,5 @@
 // sw.js - 本地资源管理器
-const CACHE_NAME = 'feynman-island-cache-v1';
+const CACHE_NAME = 'feynman-island-cache-v2';
 
 // 监听 fetch 请求，拦截 OSS 资源
 self.addEventListener('fetch', (event) => {
