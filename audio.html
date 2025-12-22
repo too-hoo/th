@@ -58,6 +58,14 @@
     </div>
 
     <script>
+
+        // 0. 注册强力缓存 (Service Worker)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js');
+            });
+        }
+
         // 1. 解析URL中的link参数
         function getUrlParam(name) {
             // 正则匹配URL中的参数
@@ -93,6 +101,9 @@
             const audio = document.createElement('audio');
             audio.controls = true; // 显示播放控件
             audio.src = audioLink; // 绑定解析到的音频链接
+
+            // --- 关键新增代码：禁止预加载 ---
+            audio.preload = 'none';
 
             // 音频加载失败的异常处理
             audio.onerror = function() {
