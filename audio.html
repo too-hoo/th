@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音频播放页</title>
+    <style>
+        /* 整体样式适配，居中显示 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft Yahei", sans-serif;
+        }
+        body {
+            background-color: #f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .audio-container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+        .title {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        /* 音频控件样式优化 */
+        audio {
+            width: 100%;
+            outline: none;
+        }
+        /* 异常提示样式 */
+        .error {
+            color: #ff4d4f;
+            font-size: 14px;
+            text-align: center;
+            padding: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="audio-container">
+        <h3 class="title">音频播放</h3>
+        <!-- 音频播放区域 -->
+        <div id="audio-player"></div>
+        <!-- 异常提示区域 -->
+        <div id="error-tips" class="error" style="display: none;"></div>
+    </div>
+
+    <script>
+        // 1. 解析URL中的link参数
+        function getUrlParam(name) {
+            // 正则匹配URL中的参数
+            const reg = new RegExp(`(^|&)${name}=([^&]*)(&|$)`);
+            const r = window.location.search.substr(1).match(reg);
+            if (r != null) return decodeURIComponent(r[2]);
+            return null;
+        }
+
+        // 2. 初始化音频播放
+        window.onload = function() {
+            const audioLink = getUrlParam('link');
+            const audioPlayer = document.getElementById('audio-player');
+            const errorTips = document.getElementById('error-tips');
+
+            // 无link参数的异常处理
+            if (!audioLink) {
+                errorTips.style.display = 'block';
+                errorTips.innerText = '错误：未检测到音频链接参数，请检查URL是否包含 ?link=音频链接';
+                return;
+            }
+
+            // 验证链接是否为音频格式（MP3/FLAC/WAV等）
+            const audioFormats = ['.mp3', '.flac', '.wav', '.m4a'];
+            const isAudio = audioFormats.some(format => audioLink.toLowerCase().endsWith(format));
+            if (!isAudio) {
+                errorTips.style.display = 'block';
+                errorTips.innerText = '错误：链接不是有效的音频文件（仅支持MP3/FLAC/WAV/M4A）';
+                return;
+            }
+
+            // 3. 创建音频播放控件
+            const audio = document.createElement('audio');
+            audio.controls = true; // 显示播放控件
+            audio.src = audioLink; // 绑定解析到的音频链接
+
+            // 音频加载失败的异常处理
+            audio.onerror = function() {
+                errorTips.style.display = 'block';
+                errorTips.innerText = '错误：音频加载失败，请检查链接是否有效或OSS防盗链配置';
+                audioPlayer.innerHTML = '';
+            };
+
+            // 将音频控件添加到页面
+            audioPlayer.appendChild(audio);
+        };
+    </script>
+</body>
+</html>
