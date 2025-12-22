@@ -58,6 +58,13 @@
     </div>
 
     <script>
+// 1. 禁止右键菜单和 F12 (防止查看源码获取 OSS 链接)
+document.oncontextmenu = () => false;
+document.onkeydown = (e) => {
+    if (e.keyCode === 123 || (e.ctrlKey && e.shiftKey && e.keyCode === 73)) return false;
+};
+
+
 
         // 0. 注册强力缓存 (Service Worker)
         if ('serviceWorker' in navigator) {
@@ -80,6 +87,18 @@
             const audioLink = getUrlParam('link');
             const audioPlayer = document.getElementById('audio-player');
             const errorTips = document.getElementById('error-tips');
+
+    const isIframe = window.self !== window.top; // 判断是否在 iframe 中
+    const isFeishu = document.referrer.includes('feishu.cn') || navigator.userAgent.includes('Lark');
+
+    if (!isIframe) {
+        document.body.innerHTML = `
+            <div style="text-align:center; padding:50px; color:#999;">
+                <h3>⚠️ 访问受限</h3>
+                <p>为了您的版权安全，请在飞书文档内查看此内容。</p>
+            </div>`;
+        return;
+    }
 
             // 无link参数的异常处理
             if (!audioLink) {
