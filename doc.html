@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文档预览页</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft Yahei", sans-serif; }
+        body, html { height: 100%; background-color: #f5f5f5; }
+        .main-wrapper { display: flex; flex-direction: column; height: 100vh; padding: 10px; }
+        .header { background: white; padding: 15px; border-radius: 8px 8px 0 0; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
+        #viewer-container { flex: 1; background: #fff; border-radius: 0 0 8px 8px; overflow: hidden; border: 1px solid #ddd; }
+        iframe { width: 100%; height: 100%; border: none; }
+        .error { color: #ff4d4f; text-align: center; padding: 50px; background: white; border-radius: 8px; }
+        .btn-download { text-decoration: none; color: #1890ff; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="main-wrapper">
+        <div class="header" id="header" style="display: none;">
+            <span style="font-weight: bold; color: #333;">文档预览</span>
+            <a id="download-link" class="btn-download" target="_blank">在新窗口打开</a>
+        </div>
+        <div id="viewer-container"></div>
+        <div id="error-tips" class="error" style="display: none;"></div>
+    </div>
+
+    <script>
+        function getUrlParam(name) {
+            const reg = new RegExp(`(^|&)${name}=([^&]*)(&|$)`);
+            const r = window.location.search.substr(1).match(reg);
+            return r != null ? decodeURIComponent(r[2]) : null;
+        }
+
+        window.onload = function() {
+            const link = getUrlParam('link');
+            const container = document.getElementById('viewer-container');
+            const errorTips = document.getElementById('error-tips');
+            const header = document.getElementById('header');
+            const downloadLink = document.getElementById('download-link');
+
+            if (!link) {
+                errorTips.style.display = 'block';
+                errorTips.innerText = '错误：未检测到文档链接参数';
+                return;
+            }
+
+            const ext = link.split('.').pop().toLowerCase();
+            let previewUrl = '';
+
+            // 1. 判断文档类型
+            if (['pdf', 'txt'].includes(ext)) {
+                // PDF和TXT直接用浏览器预览
+                previewUrl = link;
+            } else if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) {
+                // Office文件使用微软预览接口 (要求链接外网可访问)
+                previewUrl = 'https://view.officeapps.live.com/op/view.aspx?src=' + encodeURIComponent(link);
+            } else {
+                errorTips.style.display = 'block';
+                errorTips.innerText = '错误：暂不支持预览 .' + ext + ' 格式的文件';
+                return;
+            }
+
+            // 2. 渲染预览
+            header.style.display = 'flex';
+            downloadLink.href = link;
+            const iframe = document.createElement('iframe');
+            iframe.src = previewUrl;
+            container.appendChild(iframe);
+        };
+    </script>
+</body>
+</html>

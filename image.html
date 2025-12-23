@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片查看页</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft Yahei", sans-serif; }
+        body { background-color: #f5f5f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        .container { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 100%; max-width: 600px; text-align: center; }
+        .img-wrapper { margin-top: 15px; border-radius: 8px; overflow: hidden; border: 1px solid #eee; }
+        img { max-width: 100%; height: auto; display: block; margin: 0 auto; cursor: zoom-in; }
+        .error { color: #ff4d4f; font-size: 14px; padding: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h3 id="img-title" style="font-size: 18px; color: #333;">图片预览</h3>
+        <div id="img-container" class="img-wrapper"></div>
+        <div id="error-tips" class="error" style="display: none;"></div>
+    </div>
+
+    <script>
+        function getUrlParam(name) {
+            const reg = new RegExp(`(^|&)${name}=([^&]*)(&|$)`);
+            const r = window.location.search.substr(1).match(reg);
+            return r != null ? decodeURIComponent(r[2]) : null;
+        }
+
+        window.onload = function() {
+            const link = getUrlParam('link');
+            const container = document.getElementById('img-container');
+            const errorTips = document.getElementById('error-tips');
+
+            if (!link) {
+                errorTips.style.display = 'block';
+                errorTips.innerText = '错误：未检测到图片链接参数';
+                return;
+            }
+
+            const img = new Image();
+            img.src = link;
+            img.onload = () => container.appendChild(img);
+            img.onclick = () => window.open(link, '_blank');
+            img.onerror = () => {
+                errorTips.style.display = 'block';
+                errorTips.innerText = '错误：图片加载失败，请检查链接是否有效';
+            };
+        };
+    </script>
+</body>
+</html>

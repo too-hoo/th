@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>哎呀，页面走丢了</title>
+    <style>
+        :root {
+            --bg-color: #f9faff;
+            --primary-color: #a29bfe;
+            --text-color: #636e72;
+            --accent-color: #fab1a0;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            color: var(--text-color);
+            overflow: hidden;
+        }
+
+        .container {
+            text-align: center;
+            z-index: 1;
+        }
+
+        .error-code {
+            font-size: 150px;
+            font-weight: 900;
+            margin: 0;
+            line-height: 1;
+            background: linear-gradient(135deg, #a29bfe, #81ecec);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(4px 4px 10px rgba(162, 155, 254, 0.2));
+        }
+
+        .message {
+            font-size: 1.5rem;
+            margin: 20px 0 40px;
+            font-weight: 300;
+        }
+
+        .back-btn {
+            text-decoration: none;
+            padding: 12px 35px;
+            background-color: var(--primary-color);
+            color: white;
+            border-radius: 50px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 20px rgba(162, 155, 254, 0.3);
+        }
+
+        .back-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 25px rgba(162, 155, 254, 0.4);
+            background-color: #6c5ce7;
+        }
+
+        /* 装饰性浮动球体 */
+        .circle {
+            position: absolute;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(162, 155, 254, 0.1), rgba(129, 236, 236, 0.1));
+            z-index: 0;
+            animation: float 6s infinite ease-in-out;
+        }
+
+        .c1 { width: 300px; height: 300px; top: -100px; left: -50px; }
+        .c2 { width: 200px; height: 200px; bottom: -50px; right: 10%; animation-delay: -2s; }
+        .c3 { width: 100px; height: 100px; top: 20%; right: 5%; animation-delay: -4s; }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(10deg); }
+        }
+
+        @media (max-width: 600px) {
+            .error-code { font-size: 100px; }
+            .message { font-size: 1.2rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="circle c1"></div>
+    <div class="circle c2"></div>
+    <div class="circle c3"></div>
+
+    <div class="container">
+        <h1 class="error-code">404</h1>
+        <p class="message">抱歉，您寻找的页面似乎去云端度假了...</p>
+        <a href="/" class="back-btn">带我回家</a>
+    </div>
+
+</body>
+</html>
