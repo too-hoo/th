@@ -3,58 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>文档阅读器</title>
+    <title>费曼的心理岛 - 深度阅读器</title>
     <script src="https://unpkg.com/jszip/dist/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx-preview/dist/docx-preview.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <style>
-        /* 1. 安全隐藏逻辑 */
-        body { display: block; margin: 0; padding: 0; background-color: #f5f5f5; font-family: "Microsoft Yahei", sans-serif; height: 100vh; overflow: hidden; }
+        body { margin: 0; padding: 0; background-color: #f5f5f5; font-family: sans-serif; height: 100vh; overflow: hidden; }
         .main-wrapper { display: flex; flex-direction: column; height: 100vh; padding: 10px; }
         .header { background: white; padding: 12px 20px; border-radius: 8px 8px 0 0; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; z-index: 10; }
-        #viewer-container { flex: 1; background: #fff; border-radius: 0 0 8px 8px; overflow: hidden; border: 1px solid #ddd; position: relative; }
-        /* 确保 PDF 和文档铺满 */
-        iframe { width: 100%; height: 100%; border: none; }
-        #inner-scroll { width: 100%; height: 100%; overflow-y: auto; padding: 10px; }
+        #viewer-container { flex: 1; background: #fff; border-radius: 0 0 8px 8px; overflow-y: auto; border: 1px solid #ddd; }
         .loading-tips { text-align: center; padding: 50px; color: #666; font-size: 14px; }
-        /* DOCX 预览样式优化 */
+        /* PDF 页面样式 */
+        .pdf-page { margin: 10px auto; display: block; box-shadow: 0 2px 8px rgba(0,0,0,0.1); max-width: 100%; }
         .docx-wrapper { background-color: #fff !important; padding: 20px !important; }
     </style>
 </head>
 <body>
     <div class="main-wrapper">
-        <div class="header" id="header">
-            <span id="doc-title" style="font-weight: bold; color: #333; font-size: 14px;">正在载入资源...</span>
-            <span style="color: #28a745; font-size: 12px; font-weight: bold;">✅ 授权访问</span>
+        <div class="header">
+            <span id="doc-title" style="font-weight: bold; color: #333; font-size: 14px;">正在载入...</span>
+            <span style="color: #28a745; font-size: 12px; font-weight: bold;">✅ 安全预览通道</span>
         </div>
         <div id="viewer-container">
-            <div id="loading" class="loading-tips">岛屿正在为您翻开书卷...</div>
+            <div id="loading" class="loading-tips">岛屿正在为您准备书籍，请稍候...</div>
         </div>
     </div>
 
     <script>
-        // // 1. 安全锁：拦截右键、F12 (保护版权)
-        // document.oncontextmenu = () => false;
-        // document.onkeydown = (e) => {
-        //     if (e.keyCode === 123 || (e.ctrlKey && e.shiftKey && e.keyCode === 73)) return false;
-        // };
-
-        // // 2. 环境监测 (适配飞书与 Notion)
-        // (function() {
-        //     const isIframe = window.self !== window.top;
-        //     const isAuthorized = document.referrer.includes('feishu.cn') || 
-        //                        document.referrer.includes('notion.so') || 
-        //                        navigator.userAgent.includes('Lark');
-        //     if (!isIframe && !isAuthorized) {
-        //         window.location.href = "about:blank";
-        //         return;
-        //     }
-        //     document.body.style.display = "block";
-        // })();
-
-        // // 3. 注册 Service Worker 离线缓存
-        // if ('serviceWorker' in navigator) {
-        //     navigator.serviceWorker.register('sw.js');
-        // }
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
         function getUrlParam(name) {
             const reg = new RegExp(`(^|&)${name}=([^&]*)(&|$)`);
@@ -68,61 +44,38 @@
             const loading = document.getElementById('loading');
             const titleElement = document.getElementById('doc-title');
 
-            if (!link) {
-                loading.innerText = "❌ 路径参数错误";
-                return;
-            }
-
+            if (!link) { loading.innerText = "❌ 路径参数错误"; return; }
             const fileName = link.split('/').pop().split('?')[0];
             titleElement.innerText = "阅读中: " + decodeURIComponent(fileName);
             const ext = fileName.split('.').pop().toLowerCase();
 
             try {
-                // --- 成功逻辑 A: PDF 顺畅加载 (回归最初的 iframe 模式) ---
+                const response = await fetch(link);
+                if (!response.ok) throw new Error("OSS资源访问受限，请检查Referer白名单(不要带https://)");
+                const data = await response.arrayBuffer();
+
                 if (ext === 'pdf') {
-                    loading.innerText = "正在通过安全通道建立阅读连接...";
-                    
-                    // 使用 fetch 获取 PDF，这能绕过飞书对直接 URL 的拦截
-                    const response = await fetch(link);
-                    if (!response.ok) throw new Error("无法获取资源，请检查OSS Referer设置");
-                    
-                    const blob = await response.blob();
-                    const blobUrl = URL.createObjectURL(blob);
-                    
-                    const iframe = document.createElement('iframe');
-                    iframe.src = blobUrl;
                     container.innerHTML = "";
-                    container.appendChild(iframe);
-                    
-                    // 页面关闭时释放内存
-                    window.addEventListener('unload', () => URL.revokeObjectURL(blobUrl));
-                } 
-                // --- 成功逻辑 B: Word 本地渲染 (避开微软报错) ---
-                else if (ext === 'docx') {
-                    const response = await fetch(link);
-                    const arrayBuffer = await response.arrayBuffer();
-                    container.innerHTML = '<div id="inner-scroll"></div>';
-                    const scrollBox = document.getElementById('inner-scroll');
-                    docx.renderAsync(arrayBuffer, scrollBox, null, { className: "docx" });
-                } 
-                // --- 成功逻辑 C: TXT 乱码修复 (UTF-8 强解) ---
-                else if (ext === 'txt') {
-                    const response = await fetch(link);
-                    const arrayBuffer = await response.arrayBuffer();
-                    const text = new TextDecoder('utf-8').decode(arrayBuffer);
-                    container.innerHTML = `<div id="inner-scroll"><pre style="white-space:pre-wrap; font-size:14px; color:#444; line-height:1.6;">${text}</pre></div>`;
-                } 
-                // 其余 Office 格式尝试微软接口，但建议转 PDF
-                else if (['doc', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) {
-                    const iframe = document.createElement('iframe');
-                    iframe.src = 'https://view.officeapps.live.com/op/view.aspx?src=' + encodeURIComponent(link);
+                    const pdf = await pdfjsLib.getDocument({data}).promise;
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const viewport = page.getViewport({scale: 1.5});
+                        const canvas = document.createElement('canvas');
+                        canvas.className = 'pdf-page';
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
+                        container.appendChild(canvas);
+                        await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
+                    }
+                } else if (ext === 'docx') {
                     container.innerHTML = "";
-                    container.appendChild(iframe);
-                } else {
-                    loading.innerText = "⚠️ 暂不支持此格式预览";
+                    await docx.renderAsync(data, container, null, { className: "docx" });
+                } else if (ext === 'txt') {
+                    const text = new TextDecoder('utf-8').decode(data);
+                    container.innerHTML = `<pre style="padding:20px; white-space:pre-wrap; font-size:14px;">${text}</pre>`;
                 }
             } catch (err) {
-                loading.innerText = "❌ 资源解析失败，请检查 OSS 跨域设置";
+                loading.innerText = "❌ 解析失败：" + err.message;
             }
         };
     </script>
