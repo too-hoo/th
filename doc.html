@@ -3,14 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>费曼的心理岛 - 深度阅读安全版</title>
+    <title>费曼的心理岛 - 文档阅读</title>
     <script src="https://unpkg.com/jszip/dist/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx-preview/dist/docx-preview.min.js"></script>
     <style>
+        /* 默认隐藏，只有检测通过才显示 */
         body { display: none; margin: 0; padding: 0; background-color: #f5f5f5; font-family: "Microsoft Yahei", sans-serif; height: 100vh; overflow: hidden; }
         .main-wrapper { display: flex; flex-direction: column; height: 100vh; padding: 10px; }
         .header { background: white; padding: 12px 20px; border-radius: 8px 8px 0 0; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; z-index: 10; }
-        #viewer-container { flex: 1; background: #fff; border-radius: 0 0 8px 8px; overflow-y: auto; border: 1px solid #ddd; padding: 0; }
+        #viewer-container { flex: 1; background: #fff; border-radius: 0 0 8px 8px; overflow-y: auto; border: 1px solid #ddd; padding: 0; position: relative; }
+        /* 顺畅模式的关键：让 iframe 铺满 */
         iframe { width: 100%; height: 100%; border: none; }
         .loading-tips { text-align: center; padding: 50px; color: #666; font-size: 14px; }
         .docx-wrapper { background-color: #fff !important; padding: 20px !important; }
@@ -18,23 +20,23 @@
 </head>
 <body>
     <div class="main-wrapper">
-        <div class="header" id="header">
-            <span id="doc-title" style="font-weight: bold; color: #333; font-size: 14px;">正在载入资源...</span>
-            <span style="color: #28a745; font-size: 12px; font-weight: bold;">[ 已开启安全通道 ]</span>
+        <div class="header">
+            <span id="doc-title" style="font-weight: bold; color: #333; font-size: 14px;">正在载入...</span>
+            <span style="color: #28a745; font-size: 12px; font-weight: bold;">✅ 授权环境访问</span>
         </div>
         <div id="viewer-container">
-            <div id="loading" class="loading-tips">岛屿正在搬运书籍，请稍候...</div>
+            <div id="loading" class="loading-tips">书籍正在搬运中...</div>
         </div>
     </div>
 
     <script>
-        // 1. 安全锁：拦截右键、F12
+        // 1. 安全锁：拦截右键、F12 (保护版权)
         document.oncontextmenu = () => false;
         document.onkeydown = (e) => {
             if (e.keyCode === 123 || (e.ctrlKey && e.shiftKey && e.keyCode === 73)) return false;
         };
 
-        // 2. 环境监测 (适配飞书与 Notion)
+        // 2. 环境监测 (确保在飞书/Notion内打开)
         (function() {
             const isIframe = window.self !== window.top;
             const isAuthorized = document.referrer.includes('feishu.cn') || 
@@ -47,7 +49,7 @@
             document.body.style.display = "block";
         })();
 
-        // 3. 缓存注册
+        // 3. 注册缓存服务 (sw.js)
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js');
         }
@@ -65,7 +67,7 @@
             const titleElement = document.getElementById('doc-title');
 
             if (!link) {
-                loading.innerText = "❌ 错误：路径丢失";
+                loading.innerText = "❌ 错误：未检测到有效路径";
                 return;
             }
 
@@ -74,48 +76,32 @@
             const ext = fileName.split('.').pop().toLowerCase();
 
             try {
-                // --- 核心修改：PDF 处理逻辑 ---
+                // --- 恢复 A: PDF 顺畅加载模式 (直接使用原链接) ---
                 if (ext === 'pdf') {
-                    loading.innerText = "正在建立安全阅读连接...";
-                    
-                    // 1. 使用 fetch 获取 PDF 二进制数据
-                    const response = await fetch(link);
-                    if (!response.ok) throw new Error("无法获取资源");
-                    
-                    // 2. 转化为 Blob 对象
-                    const blob = await response.blob();
-                    
-                    // 3. 生成一个临时的本地链接 (Blob URL)
-                    const blobUrl = URL.createObjectURL(blob);
-                    
-                    // 4. 将 iframe 指向这个本地链接，避开飞书对远程 URL 的拦截
                     const iframe = document.createElement('iframe');
-                    iframe.src = blobUrl;
-                    iframe.type = "application/pdf";
+                    // 直接将链接赋给 src，这是飞书里最顺畅的方式
+                    iframe.src = link; 
                     container.innerHTML = "";
                     container.appendChild(iframe);
-
-                    // 5. 页面关闭时自动销毁临时链接，释放内存
-                    window.addEventListener('unload', () => URL.revokeObjectURL(blobUrl));
                 } 
-                // --- Word 处理 ---
+                // --- 保持 B: Word 本地渲染 (免微软接口) ---
                 else if (ext === 'docx') {
                     const response = await fetch(link);
                     const arrayBuffer = await response.arrayBuffer();
                     container.innerHTML = "";
                     docx.renderAsync(arrayBuffer, container, null, { className: "docx" });
                 } 
-                // --- TXT 处理 ---
+                // --- 保持 C: TXT 乱码修复逻辑 ---
                 else if (ext === 'txt') {
                     const response = await fetch(link);
                     const arrayBuffer = await response.arrayBuffer();
                     const text = new TextDecoder('utf-8').decode(arrayBuffer);
                     container.innerHTML = `<pre style="padding:20px; white-space:pre-wrap; font-size:14px; color:#444;">${text}</pre>`;
                 } else {
-                    loading.innerHTML = "⚠️ 不支持的格式，建议转换为 PDF。";
+                    loading.innerHTML = "⚠️ 暂不支持该格式预览。";
                 }
             } catch (err) {
-                loading.innerHTML = `❌ 加载失败：<br><small>${err.message}</small><br><br>建议检查 OSS 跨域设置是否允许所有来源 (*)`;
+                loading.innerText = "❌ 资源解析失败，请检查网络或链接。";
             }
         };
     </script>
