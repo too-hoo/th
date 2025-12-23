@@ -80,10 +80,22 @@
             try {
                 // --- 成功逻辑 A: PDF 顺畅加载 (回归最初的 iframe 模式) ---
                 if (ext === 'pdf') {
+                    loading.innerText = "正在通过安全通道建立阅读连接...";
+                    
+                    // 使用 fetch 获取 PDF，这能绕过飞书对直接 URL 的拦截
+                    const response = await fetch(link);
+                    if (!response.ok) throw new Error("无法获取资源，请检查OSS Referer设置");
+                    
+                    const blob = await response.blob();
+                    const blobUrl = URL.createObjectURL(blob);
+                    
                     const iframe = document.createElement('iframe');
-                    iframe.src = link; 
+                    iframe.src = blobUrl;
                     container.innerHTML = "";
                     container.appendChild(iframe);
+                    
+                    // 页面关闭时释放内存
+                    window.addEventListener('unload', () => URL.revokeObjectURL(blobUrl));
                 } 
                 // --- 成功逻辑 B: Word 本地渲染 (避开微软报错) ---
                 else if (ext === 'docx') {
