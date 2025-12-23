@@ -32,24 +32,24 @@
     </div>
 
     <script>
-        // 1. 安全锁：拦截右键、F12 (保护版权)
-        document.oncontextmenu = () => false;
-        document.onkeydown = (e) => {
-            if (e.keyCode === 123 || (e.ctrlKey && e.shiftKey && e.keyCode === 73)) return false;
-        };
+        // // 1. 安全锁：拦截右键、F12 (保护版权)
+        // document.oncontextmenu = () => false;
+        // document.onkeydown = (e) => {
+        //     if (e.keyCode === 123 || (e.ctrlKey && e.shiftKey && e.keyCode === 73)) return false;
+        // };
 
-        // 2. 环境监测 (适配飞书与 Notion)
-        (function() {
-            const isIframe = window.self !== window.top;
-            const isAuthorized = document.referrer.includes('feishu.cn') || 
-                               document.referrer.includes('notion.so') || 
-                               navigator.userAgent.includes('Lark');
-            if (!isIframe && !isAuthorized) {
-                window.location.href = "about:blank";
-                return;
-            }
-            document.body.style.display = "block";
-        })();
+        // // 2. 环境监测 (适配飞书与 Notion)
+        // (function() {
+        //     const isIframe = window.self !== window.top;
+        //     const isAuthorized = document.referrer.includes('feishu.cn') || 
+        //                        document.referrer.includes('notion.so') || 
+        //                        navigator.userAgent.includes('Lark');
+        //     if (!isIframe && !isAuthorized) {
+        //         window.location.href = "about:blank";
+        //         return;
+        //     }
+        //     document.body.style.display = "block";
+        // })();
 
         // 3. 注册 Service Worker 离线缓存
         if ('serviceWorker' in navigator) {
