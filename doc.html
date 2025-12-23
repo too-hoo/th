@@ -3,80 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>费曼的心理岛 - 深度阅读器</title>
-    <script src="https://unpkg.com/jszip/dist/jszip.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/docx-preview/dist/docx-preview.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <title>文档预览页</title>
     <style>
-        body { margin: 0; padding: 0; background-color: #f5f5f5; font-family: sans-serif; height: 100vh; overflow: hidden; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft Yahei", sans-serif; }
+        body, html { height: 100%; background-color: #f5f5f5; }
         .main-wrapper { display: flex; flex-direction: column; height: 100vh; padding: 10px; }
-        .header { background: white; padding: 12px 20px; border-radius: 8px 8px 0 0; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; z-index: 10; }
-        #viewer-container { flex: 1; background: #fff; border-radius: 0 0 8px 8px; overflow-y: auto; border: 1px solid #ddd; }
-        .loading-tips { text-align: center; padding: 50px; color: #666; font-size: 14px; }
-        /* PDF 页面样式 */
-        .pdf-page { margin: 10px auto; display: block; box-shadow: 0 2px 8px rgba(0,0,0,0.1); max-width: 100%; }
-        .docx-wrapper { background-color: #fff !important; padding: 20px !important; }
+        .header { background: white; padding: 15px; border-radius: 8px 8px 0 0; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
+        #viewer-container { flex: 1; background: #fff; border-radius: 0 0 8px 8px; overflow: hidden; border: 1px solid #ddd; }
+        iframe { width: 100%; height: 100%; border: none; }
+        .error { color: #ff4d4f; text-align: center; padding: 50px; background: white; border-radius: 8px; }
+        .btn-download { text-decoration: none; color: #1890ff; font-size: 14px; }
     </style>
 </head>
 <body>
     <div class="main-wrapper">
-        <div class="header">
-            <span id="doc-title" style="font-weight: bold; color: #333; font-size: 14px;">正在载入...</span>
-            <span style="color: #28a745; font-size: 12px; font-weight: bold;">✅ 安全预览通道</span>
+        <div class="header" id="header" style="display: none;">
+            <span style="font-weight: bold; color: #333;">文档预览</span>
+            <a id="download-link" class="btn-download" target="_blank">在新窗口打开</a>
         </div>
-        <div id="viewer-container">
-            <div id="loading" class="loading-tips">岛屿正在为您准备书籍，请稍候...</div>
-        </div>
+        <div id="viewer-container"></div>
+        <div id="error-tips" class="error" style="display: none;"></div>
     </div>
 
     <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
         function getUrlParam(name) {
             const reg = new RegExp(`(^|&)${name}=([^&]*)(&|$)`);
             const r = window.location.search.substr(1).match(reg);
             return r != null ? decodeURIComponent(r[2]) : null;
         }
 
-        window.onload = async function() {
+        window.onload = function() {
             const link = getUrlParam('link');
             const container = document.getElementById('viewer-container');
-            const loading = document.getElementById('loading');
-            const titleElement = document.getElementById('doc-title');
+            const errorTips = document.getElementById('error-tips');
+            const header = document.getElementById('header');
+            const downloadLink = document.getElementById('download-link');
 
-            if (!link) { loading.innerText = "❌ 路径参数错误"; return; }
-            const fileName = link.split('/').pop().split('?')[0];
-            titleElement.innerText = "阅读中: " + decodeURIComponent(fileName);
-            const ext = fileName.split('.').pop().toLowerCase();
-
-            try {
-                const response = await fetch(link);
-                if (!response.ok) throw new Error("OSS资源访问受限，请检查Referer白名单(不要带https://)");
-                const data = await response.arrayBuffer();
-
-                if (ext === 'pdf') {
-                    container.innerHTML = "";
-                    const pdf = await pdfjsLib.getDocument({data}).promise;
-                    for (let i = 1; i <= pdf.numPages; i++) {
-                        const page = await pdf.getPage(i);
-                        const viewport = page.getViewport({scale: 1.5});
-                        const canvas = document.createElement('canvas');
-                        canvas.className = 'pdf-page';
-                        canvas.height = viewport.height;
-                        canvas.width = viewport.width;
-                        container.appendChild(canvas);
-                        await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
-                    }
-                } else if (ext === 'docx') {
-                    container.innerHTML = "";
-                    await docx.renderAsync(data, container, null, { className: "docx" });
-                } else if (ext === 'txt') {
-                    const text = new TextDecoder('utf-8').decode(data);
-                    container.innerHTML = `<pre style="padding:20px; white-space:pre-wrap; font-size:14px;">${text}</pre>`;
-                }
-            } catch (err) {
-                loading.innerText = "❌ 解析失败：" + err.message;
+            if (!link) {
+                errorTips.style.display = 'block';
+                errorTips.innerText = '错误：未检测到文档链接参数';
+                return;
             }
+
+            const ext = link.split('.').pop().toLowerCase();
+            let previewUrl = '';
+
+            // 1. 判断文档类型
+            if (['pdf', 'txt'].includes(ext)) {
+                // PDF和TXT直接用浏览器预览
+                previewUrl = link;
+            } else if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) {
+                // Office文件使用微软预览接口 (要求链接外网可访问)
+                previewUrl = 'https://view.officeapps.live.com/op/view.aspx?src=' + encodeURIComponent(link);
+            } else {
+                errorTips.style.display = 'block';
+                errorTips.innerText = '错误：暂不支持预览 .' + ext + ' 格式的文件';
+                return;
+            }
+
+            // 2. 渲染预览
+            header.style.display = 'flex';
+            downloadLink.href = link;
+            const iframe = document.createElement('iframe');
+            iframe.src = previewUrl;
+            container.appendChild(iframe);
         };
     </script>
 </body>
