@@ -4,52 +4,48 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>费曼的心理岛 - 文档阅读</title>
-    <script src="https://unpkg.com/jszip/dist/jszip.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/docx-preview/dist/docx-preview.min.js"></script>
     <style>
-        /* 默认隐藏，只有检测通过才显示 */
+        /* 1. 默认隐藏页面，防止加载瞬间内容外泄 */
         body { display: none; margin: 0; padding: 0; background-color: #f5f5f5; font-family: "Microsoft Yahei", sans-serif; height: 100vh; overflow: hidden; }
         .main-wrapper { display: flex; flex-direction: column; height: 100vh; padding: 10px; }
         .header { background: white; padding: 12px 20px; border-radius: 8px 8px 0 0; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; z-index: 10; }
-        #viewer-container { flex: 1; background: #fff; border-radius: 0 0 8px 8px; overflow-y: auto; border: 1px solid #ddd; padding: 0; position: relative; }
-        /* 顺畅模式的关键：让 iframe 铺满 */
+        #viewer-container { flex: 1; background: #fff; border-radius: 0 0 8px 8px; overflow: hidden; border: 1px solid #ddd; position: relative; }
+        /* 核心：让 iframe 撑满容器，实现顺畅滚动 */
         iframe { width: 100%; height: 100%; border: none; }
-        .loading-tips { text-align: center; padding: 50px; color: #666; font-size: 14px; }
-        .docx-wrapper { background-color: #fff !important; padding: 20px !important; }
+        .error { color: #ff4d4f; text-align: center; padding: 50px; background: white; border-radius: 8px; }
     </style>
 </head>
 <body>
     <div class="main-wrapper">
-        <div class="header">
-            <span id="doc-title" style="font-weight: bold; color: #333; font-size: 14px;">正在载入...</span>
+        <div class="header" id="header">
+            <span id="doc-title" style="font-weight: bold; color: #333; font-size: 14px;">正在载入书籍...</span>
             <span style="color: #28a745; font-size: 12px; font-weight: bold;">✅ 授权环境访问</span>
         </div>
-        <div id="viewer-container">
-            <div id="loading" class="loading-tips">书籍正在搬运中...</div>
-        </div>
+        <div id="viewer-container"></div>
+        <div id="error-tips" class="error" style="display: none;"></div>
     </div>
 
     <script>
-        // 1. 安全锁：拦截右键、F12 (保护版权)
+        // 1. 安全锁：拦截右键和 F12 (保护版权)
         document.oncontextmenu = () => false;
         document.onkeydown = (e) => {
             if (e.keyCode === 123 || (e.ctrlKey && e.shiftKey && e.keyCode === 73)) return false;
         };
 
-        // 2. 环境监测 (确保在飞书/Notion内打开)
+        // 2. 环境监测：仅限飞书和 Notion 内部打开
         (function() {
             const isIframe = window.self !== window.top;
             const isAuthorized = document.referrer.includes('feishu.cn') || 
                                document.referrer.includes('notion.so') || 
                                navigator.userAgent.includes('Lark');
             if (!isIframe && !isAuthorized) {
-                window.location.href = "about:blank";
+                window.location.href = "about:blank"; // 非授权直接空白
                 return;
             }
-            document.body.style.display = "block";
+            document.body.style.display = "block"; // 通过检测后再显示 body
         })();
 
-        // 3. 注册缓存服务 (sw.js)
+        // 3. 注册缓存 (sw.js)
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js');
         }
@@ -60,49 +56,43 @@
             return r != null ? decodeURIComponent(r[2]) : null;
         }
 
-        window.onload = async function() {
+        window.onload = function() {
             const link = getUrlParam('link');
             const container = document.getElementById('viewer-container');
-            const loading = document.getElementById('loading');
+            const errorTips = document.getElementById('error-tips');
             const titleElement = document.getElementById('doc-title');
 
             if (!link) {
-                loading.innerText = "❌ 错误：未检测到有效路径";
+                errorTips.style.display = 'block';
+                errorTips.innerText = '错误：未检测到文档链接';
                 return;
             }
 
+            // 更新标题
             const fileName = link.split('/').pop().split('?')[0];
-            titleElement.innerText = "阅读中: " + decodeURIComponent(fileName);
-            const ext = fileName.split('.').pop().toLowerCase();
+            titleElement.innerText = "正在阅读: " + decodeURIComponent(fileName);
 
-            try {
-                // --- 恢复 A: PDF 顺畅加载模式 (直接使用原链接) ---
-                if (ext === 'pdf') {
-                    const iframe = document.createElement('iframe');
-                    // 直接将链接赋给 src，这是飞书里最顺畅的方式
-                    iframe.src = link; 
-                    container.innerHTML = "";
-                    container.appendChild(iframe);
-                } 
-                // --- 保持 B: Word 本地渲染 (免微软接口) ---
-                else if (ext === 'docx') {
-                    const response = await fetch(link);
-                    const arrayBuffer = await response.arrayBuffer();
-                    container.innerHTML = "";
-                    docx.renderAsync(arrayBuffer, container, null, { className: "docx" });
-                } 
-                // --- 保持 C: TXT 乱码修复逻辑 ---
-                else if (ext === 'txt') {
-                    const response = await fetch(link);
-                    const arrayBuffer = await response.arrayBuffer();
-                    const text = new TextDecoder('utf-8').decode(arrayBuffer);
-                    container.innerHTML = `<pre style="padding:20px; white-space:pre-wrap; font-size:14px; color:#444;">${text}</pre>`;
-                } else {
-                    loading.innerHTML = "⚠️ 暂不支持该格式预览。";
-                }
-            } catch (err) {
-                loading.innerText = "❌ 资源解析失败，请检查网络或链接。";
+            const ext = link.split('.').pop().toLowerCase();
+            let previewUrl = '';
+
+            // --- 核心预览逻辑回归 ---
+            if (['pdf', 'txt'].includes(ext)) {
+                // PDF和TXT直接用浏览器/飞书原生能力，最顺畅
+                previewUrl = link;
+            } else if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) {
+                // Office 文件使用微软接口预览
+                previewUrl = 'https://view.officeapps.live.com/op/view.aspx?src=' + encodeURIComponent(link);
+            } else {
+                errorTips.style.display = 'block';
+                errorTips.innerText = '不支持预览此格式';
+                return;
             }
+
+            // 创建 iframe 加载
+            const iframe = document.createElement('iframe');
+            iframe.src = previewUrl;
+            container.innerHTML = "";
+            container.appendChild(iframe);
         };
     </script>
 </body>
