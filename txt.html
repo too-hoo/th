@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文本阅读页</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft Yahei", sans-serif; }
+        body { background-color: #f5f5f5; display: none; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        .doc-container { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 100%; max-width: 800px; height: 90vh; display: flex; flex-direction: column; }
+        .title { font-size: 16px; color: #333; margin-bottom: 15px; text-align: center; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        #viewer { flex: 1; overflow-y: auto; background: #fafafa; padding: 15px; border-radius: 4px; border: 1px solid #eee; white-space: pre-wrap; word-wrap: break-word; font-size: 14px; line-height: 1.6; color: #444; }
+        .error { color: #ff4d4f; font-size: 14px; text-align: center; padding: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="doc-container">
+        <h3 class="title" id="doc-title">文本阅读</h3>
+        <div id="viewer">正在读取内容...</div>
+        <div id="error-tips" class="error" style="display: none;"></div>
+    </div>
+
+    <script>
+        // --- 核心安全验证 (复用 audio.html) ---
+        (function() {
+            const isIframe = window.self !== window.top;
+            if (!isIframe) { window.location.href = "about:blank"; return; }
+            document.addEventListener("DOMContentLoaded", () => { document.body.style.display = "flex"; });
+        })();
+        document.oncontextmenu = () => false;
+        document.onkeydown = (e) => {
+            if (e.keyCode === 123 || (e.ctrlKey && e.shiftKey && e.keyCode === 73) || (e.ctrlKey && e.keyCode === 85)) return false;
+        };
+        if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js'); }); }
+
+        function getUrlParam(name) {
+            const reg = new RegExp(`(^|&)${name}=([^&]*)(&|$)`);
+            const r = window.location.search.substr(1).match(reg);
+            return r != null ? decodeURIComponent(r[2]) : null;
+        }
+
+        window.onload = async function() {
+            const link = getUrlParam('link');
+            const viewer = document.getElementById('viewer');
+            const errorTips = document.getElementById('error-tips');
+            if (!link) { errorTips.style.display = 'block'; errorTips.innerText = '错误：未检测到链接参数'; return; }
+
+            try {
+                const response = await fetch(link);
+                if (!response.ok) throw new Error();
+                const arrayBuffer = await response.arrayBuffer();
+                // 重点：强制使用 UTF-8 解码，解决乱码
+                const text = new TextDecoder('utf-8').decode(arrayBuffer);
+                viewer.innerText = text;
+                document.getElementById('doc-title').innerText = "阅读中：" + decodeURIComponent(link.split('/').pop());
+            } catch (err) {
+                errorTips.style.display = 'block';
+                errorTips.innerText = '错误：文件读取失败，请检查跨域设置或链接有效性';
+                viewer.style.display = 'none';
+            }
+        };
+    </script>
+</body>
+</html>
