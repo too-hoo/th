@@ -6,64 +6,48 @@
     <title>PDF预览页</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft Yahei", sans-serif; }
-        body, html { height: 100%; background-color: #f5f5f5; }
-        .main-wrapper { display: flex; flex-direction: column; height: 100vh; padding: 10px; }
-        .header { background: white; padding: 15px; border-radius: 8px 8px 0 0; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
-        #viewer-container { flex: 1; background: #fff; border-radius: 0 0 8px 8px; overflow: hidden; border: 1px solid #ddd; }
+        body { background-color: #f5f5f5; display: none; height: 100vh; overflow: hidden; }
         iframe { width: 100%; height: 100%; border: none; }
-        .error { color: #ff4d4f; text-align: center; padding: 50px; background: white; border-radius: 8px; }
-        .btn-download { text-decoration: none; color: #1890ff; font-size: 14px; }
+        .error { color: #ff4d4f; text-align: center; padding: 50px; }
     </style>
 </head>
 <body>
-    <div class="main-wrapper">
-        <div class="header" id="header" style="display: none;">
-            <span style="font-weight: bold; color: #333;">文档预览</span>
-            <a id="download-link" class="btn-download" target="_blank">在新窗口打开</a>
-        </div>
-        <div id="viewer-container"></div>
-        <div id="error-tips" class="error" style="display: none;"></div>
-    </div>
+    <div id="viewer" style="width: 100%; height: 100%;">正在开启安全通道...</div>
 
     <script>
+        // --- 复用 audio.html 安全验证 ---
+        (function() {
+            const isIframe = window.self !== window.top;
+            if (!isIframe) { window.location.href = "about:blank"; return; }
+            document.addEventListener("DOMContentLoaded", () => { document.body.style.display = "block"; });
+        })();
+        document.oncontextmenu = () => false;
+
         function getUrlParam(name) {
             const reg = new RegExp(`(^|&)${name}=([^&]*)(&|$)`);
             const r = window.location.search.substr(1).match(reg);
             return r != null ? decodeURIComponent(r[2]) : null;
         }
 
-        window.onload = function() {
+        window.onload = async function() {
             const link = getUrlParam('link');
-            const container = document.getElementById('viewer-container');
-            const errorTips = document.getElementById('error-tips');
-            const header = document.getElementById('header');
-            const downloadLink = document.getElementById('download-link');
+            const viewer = document.getElementById('viewer');
+            if (!link) return;
 
-            if (!link) {
-                errorTips.style.display = 'block';
-                errorTips.innerText = '错误：未检测到文档链接参数';
-                return;
+            try {
+                // 改用 fetch 抓取数据，绕过飞书对 iframe src 的直接拦截
+                const response = await fetch(link);
+                if (!response.ok) throw new Error("无法读取文件，请检查OSS白名单设置");
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+
+                const iframe = document.createElement('iframe');
+                iframe.src = blobUrl; // 加载内存中的本地链接，飞书不会拦截
+                viewer.innerHTML = "";
+                viewer.appendChild(iframe);
+            } catch (err) {
+                viewer.innerHTML = `<div class="error">❌ 加载失败: ${err.message}</div>`;
             }
-
-            const ext = link.split('.').pop().toLowerCase();
-            let previewUrl = '';
-
-            // 1. 判断文档类型
-            if (['pdf'].includes(ext)) {
-                // PDF和TXT直接用浏览器预览
-                previewUrl = link;
-            } else {
-                errorTips.style.display = 'block';
-                errorTips.innerText = '错误：暂不支持预览 .' + ext + ' 格式的文件';
-                return;
-            }
-
-            // 2. 渲染预览
-            header.style.display = 'flex';
-            downloadLink.href = link;
-            const iframe = document.createElement('iframe');
-            iframe.src = previewUrl;
-            container.appendChild(iframe);
         };
     </script>
 </body>
